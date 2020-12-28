@@ -1,0 +1,41 @@
+{
+    "name": "pulunomoe/datamapper",
+    "description": "Super simple data mapper ORM for PHP",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Agus P. Purnomo",
+            "email": "furunomail@gmail.com"
+        }
+    ],
+    "homepage": "https://github.com/pulunomoe/datamapper",
+    "keywords": [
+        "datamapper",
+        "orm"
+    ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/pulunomoe/datamapper"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "ext-pdo": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pulunomoe\\DataMapper\\": "src"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "ext-pdo_sqlite": "*",
+        "ext-sqlite3": "*"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pulunomoe\\DataMapper\\Tests\\": "tests"
+        }
+    }
+}
