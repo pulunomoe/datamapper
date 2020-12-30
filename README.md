@@ -14,7 +14,11 @@ Super simple data mapper ORM for PHP.
 
 ## Usage
 
-### 1. Create your entity class
+### 1. Install with composer
+
+`composer require pulunomoe/datamapper`
+
+### 2. Create your entity class
 
 ```php
 <?php
@@ -41,7 +45,7 @@ class Car extends EntityClass
 }
 ```
 
-### 2. Call the DataMapper
+### 3. Call the DataMapper
 
 ```php
 <?php
@@ -51,6 +55,9 @@ $dm = new DataMapper($pdo, Car::class);
 
 // Retrieve all cars
 $dm->findAll();
+
+// Retrieve all cars by brand
+$dm->findAllBy('brand', 'Danke Motoren Werke');
 
 // Retrieve a single car with the id = 1
 $dm->findOne(1);
@@ -68,6 +75,37 @@ $car = $dm->update($car);
 // Delete a car with the id = 1
 $dm->delete(1);
 ```
+
+# API
+
+- Find All
+
+`findAll(string $orderBy = '', bool $desc = false, int $limit = 10, int $offset = 0): array`
+
+- Find All By
+
+`findAllBy(string $column, string $value, string $orderBy = '', bool $desc = false, int $limit = 10, int $offset = 0): array`
+
+- Find One
+
+`function findOne(int $id): ?EntityClass`
+
+- Create
+
+`create(EntityClass $object): EntityClass`
+
+- Update
+
+`update(EntityClass $object): EntityClass`
+
+- Delete
+
+`function delete(int $id): void`
+
+# Changelog
+
+- v0.1 : Initial version
+- v0.2 : Added ordering, limit, and find all by
 
 ## Shameless plug
 

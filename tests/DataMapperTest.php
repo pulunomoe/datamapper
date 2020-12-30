@@ -13,7 +13,7 @@ class DataMapperTest extends TestCase
 	public static function setUpBeforeClass(): void
 	{
 		self::$pdo = new PDO('sqlite::memory:');
-		self::$pdo->exec('CREATE TABLE tests (id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NULL)');
+		self::$pdo->exec('CREATE TABLE tests (id_field INTEGER PRIMARY KEY, name_field TEXT NOT NULL, description_field TEXT NULL)');
 	}
 
 	protected function setUp(): void
@@ -41,6 +41,54 @@ class DataMapperTest extends TestCase
 		$actualEntities = $dm->findAll();
 
 		// THEN I should be able to see the entities
+		foreach ($actualEntities as $actual) {
+			$expected = $expectedEntities[$actual->id];
+			$this->assertEqualsCanonicalizing($expected, json_decode('' . $actual, true));
+		}
+	}
+
+	public function testFindSome()
+	{
+		// GIVEN I have a lot of entities stored in the database
+		$expectedEntities = [];
+		for ($i = 0; $i < 50; $i++) {
+			$entity = $this->saveEntity(['name' => 'test'.$i, 'description' => 'wow test'.$i]);
+			$expectedEntities[$entity['id']] = $entity;
+		}
+
+		// WHEN I call the findAll method specifying the limit and offset
+		$dm = new DataMapper(self::$pdo, TestEntity::class);
+		$actualEntities = $dm->findAll(limit: 10, offset: 10);
+
+		// THEN I should be able to see some of the entities
+		$this->assertEquals(10, sizeof($actualEntities));
+		foreach ($actualEntities as $actual) {
+			$expected = $expectedEntities[$actual->id];
+			$this->assertEqualsCanonicalizing($expected, json_decode('' . $actual, true));
+		}
+	}
+
+	public function testFindAllBy()
+	{
+		// GIVEN I have several entities stored in the database
+		$entities = [
+			['name' => 'aiam', 'description' => 'wow aiam'],
+			['name' => 'bebex', 'description' => 'wow bebex'],
+			['name' => 'cicac', 'description' => 'wow cicac']
+		];
+
+		$expectedEntities = [];
+		foreach ($entities as $entity) {
+			$entity = $this->saveEntity($entity);
+			$expectedEntities[$entity['id']] = $entity;
+		}
+
+		// WHEN I call the testFindAllBy method specifying the criteria
+		$dm = new DataMapper(self::$pdo, TestEntity::class);
+		$actualEntities = $dm->findAllBy('name', 'aiam');
+
+		// THEN I should be able to see the matching entities
+		$this->assertEquals(1, sizeof($actualEntities));
 		foreach ($actualEntities as $actual) {
 			$expected = $expectedEntities[$actual->id];
 			$this->assertEqualsCanonicalizing($expected, json_decode('' . $actual, true));
@@ -113,7 +161,7 @@ class DataMapperTest extends TestCase
 
 	private function saveEntity(array $entity): array
 	{
-		$stmt = self::$pdo->prepare('INSERT INTO tests (name, description) VALUES (:name, :description)');
+		$stmt = self::$pdo->prepare('INSERT INTO tests (name_field, description_field) VALUES (:name, :description)');
 		$stmt->execute([
 			'name' => $entity['name'],
 			'description' => $entity['description']
