@@ -9,12 +9,12 @@ use Pulunomoe\DataMapper\Property;
 #[Entity('tests')]
 class TestEntity extends EntityClass
 {
-	#[Property('id')]
+	#[Property('id_field')]
 	public int $id;
 
-	#[Property('name')]
+	#[Property('name_field')]
 	public string $name;
 
-	#[Property('description')]
+	#[Property('description_field')]
 	public string $description;
 }

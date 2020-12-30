@@ -37,21 +37,43 @@ class DataMapper
 			}
 
 			$attr = $attr[0]->newInstance();
-			$this->columns[] = $attr->getColumn();
+			$this->columns[$prop->name] = $attr->getColumn();
 		}
 	}
 
 	////////////////////////////////////////////////////////////////////////////
 
-	public function findAll(): array
+	public function findAll(string $orderBy = '', bool $desc = false, int $limit = 10, int $offset = 0): array
 	{
 		$sql = $this->getSelectSql();
+		$sql .= $this->getOrderBySql($orderBy, $desc);
+		$sql .= $this->getLimitSql($limit, $offset);
 
 		$rows = $this->pdo->query($sql)->fetchAll();
 
 		$objects = [];
 		foreach ($rows as $row) {
-			$objects[$row['id']] = $this->mapRowToObject($row);
+			$objects[$row[$this->columns['id']]] = $this->mapRowToObject($row);
+		}
+
+		return $objects;
+	}
+
+	public function findAllBy(string $column, string $value, string $orderBy = '', bool $desc = false, int $limit = 10, int $offset = 0): array
+	{
+		$sql = $this->getSelectSql();
+		$sql .= ' WHERE ';
+		$sql .= $this->columns[$column];
+		$sql .= ' = :' . $column;
+		$sql .= $this->getOrderBySql($orderBy, $desc);
+
+		$stmt = $this->pdo->prepare($sql);
+		$stmt->execute([':'.$column => $value]);
+		$rows = $stmt->fetchAll();
+
+		$objects = [];
+		foreach ($rows as $row) {
+			$objects[$row[$this->columns['id']]] = $this->mapRowToObject($row);
 		}
 
 		return $objects;
@@ -60,10 +82,12 @@ class DataMapper
 	public function findOne(int $id): ?EntityClass
 	{
 		$sql = $this->getSelectSql();
-		$sql .= ' WHERE id = :id';
+		$sql .= ' WHERE ';
+		$sql .= $this->columns['id'];
+		$sql .= ' = :id';
 
 		$stmt = $this->pdo->prepare($sql);
-		$stmt->execute(['id' => $id]);
+		$stmt->execute([':id' => $id]);
 		$row = $stmt->fetch();
 
 		return empty($row) ? null : $this->mapRowToObject($row);
@@ -74,7 +98,7 @@ class DataMapper
 		$sql = $this->getInsertSql();
 
 		$stmt = $this->pdo->prepare($sql);
-		foreach ($this->columns as $column) {
+		foreach (array_keys($this->columns) as $column) {
 			if ($column == 'id') continue;
 			$stmt->bindValue(':' . $column, $object->$column);
 		}
@@ -90,7 +114,7 @@ class DataMapper
 		$sql = $this->getUpdateSql();
 
 		$stmt = $this->pdo->prepare($sql);
-		foreach ($this->columns as $column) {
+		foreach (array_keys($this->columns) as $column) {
 			$stmt->bindValue(':' . $column, $object->$column);
 		}
 		$stmt->execute();
@@ -103,7 +127,7 @@ class DataMapper
 		$sql = $this->getDeleteSql();
 
 		$stmt = $this->pdo->prepare($sql);
-		$stmt->execute(['id' => $id]);
+		$stmt->execute([':id' => $id]);
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -123,21 +147,40 @@ class DataMapper
 		return $sql;
 	}
 
+	private function getOrderBySql(string $orderBy, bool $desc): string
+	{
+		$sql = ' ORDER BY ';
+		$sql .= empty($orderBy) ? $this->columns['id'] : $this->columns[$orderBy];
+		$sql .= $desc ? ' DESC' : ' ASC';
+
+		return $sql;
+	}
+
+	public function getLimitSql(int $limit, int $offset): string
+	{
+		$sql = ' LIMIT ';
+		$sql .= $limit;
+		$sql .= ' OFFSET ';
+		$sql .= $offset;
+
+		return $sql;
+	}
+
 	private function getInsertSql(): string
 	{
 		$sql = 'INSERT INTO ';
 		$sql .= $this->table;
 		$sql .= ' (';
 
-		foreach ($this->columns as $column) {
-			if ($column == 'id') continue;
-			$sql .= $column . ', ';
+		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
+			if ($objectPropertyName == 'id') continue;
+			$sql .= $dbFieldName . ', ';
 		}
 		$sql = rtrim($sql, ', ');
 
 		$sql .= ' ) VALUES (';
 
-		foreach ($this->columns as $column) {
+		foreach (array_keys($this->columns) as $column) {
 			if ($column == 'id') continue;
 			$sql .= ':' . $column . ', ';
 		}
@@ -154,13 +197,15 @@ class DataMapper
 		$sql .= $this->table;
 		$sql .= ' SET ';
 
-		foreach ($this->columns as $column) {
-			if ($column == 'id') continue;
-			$sql .= $column . ' = :' . $column . ', ';
+		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
+			if ($objectPropertyName == 'id') continue;
+			$sql .= $dbFieldName . ' = :' . $objectPropertyName . ', ';
 		}
 		$sql = rtrim($sql, ', ');
 
-		$sql .= ' WHERE id = :id';
+		$sql .= ' WHERE ';
+		$sql .= $this->columns['id'];
+		$sql .= ' = :id';
 
 		return $sql;
 	}
@@ -169,7 +214,9 @@ class DataMapper
 	{
 		$sql = 'DELETE FROM ';
 		$sql .= $this->table;
-		$sql .= ' WHERE id = :id';
+		$sql .= ' WHERE ';
+		$sql .= $this->columns['id'];
+		$sql .= ' = :id';
 
 		return $sql;
 	}
@@ -179,8 +226,8 @@ class DataMapper
 	private function mapRowToObject(array $row): EntityClass
 	{
 		$object = new $this->class();
-		foreach ($this->columns as $column) {
-			$object->$column = $row[$column];
+		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
+			$object->$objectPropertyName = $row[$dbFieldName];
 		}
 
 		return $object;
