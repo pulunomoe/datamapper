@@ -2,9 +2,9 @@
 
 namespace Pulunomoe\DataMapper\Tests;
 
-use Pulunomoe\DataMapper\Entity;
 use Pulunomoe\DataMapper\EntityClass;
-use Pulunomoe\DataMapper\Property;
+use Pulunomoe\DataMapper\Attribute\Entity;
+use Pulunomoe\DataMapper\Attribute\Property;
 
 #[Entity('tests')]
 class TestEntity extends EntityClass

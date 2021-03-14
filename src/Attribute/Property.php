@@ -1,6 +1,6 @@
 <?php
 
-namespace Pulunomoe\DataMapper;
+namespace Pulunomoe\DataMapper\Attribute;
 
 use Attribute;
 

@@ -1,6 +1,6 @@
 # pulunomoe/datamapper
 
-Super simple data mapper ORM for PHP.
+Super simple data mapper ORM for PHP 8.
 
 ## Requirements
 
@@ -10,6 +10,7 @@ Super simple data mapper ORM for PHP.
 ## Features
 
 - CRUD (wow!)
+- Validations  
 - More incoming (soon-ish)
 
 ## Usage
@@ -23,13 +24,15 @@ Super simple data mapper ORM for PHP.
 ```php
 <?php
 
-// src/Entity/Car.php
+// src/EntityClass/Car.php
 
 namespace YourApp\Entity;
 
-use Pulunomoe\DataMapper\Entity;
 use Pulunomoe\DataMapper\EntityClass;
-use Pulunomoe\DataMapper\Property;
+use Pulunomoe\DataMapper\Attribute\Entity;
+use Pulunomoe\DataMapper\Attribute\Property;
+use Pulunomoe\DataMapper\Validator\NotEmpty;
+use Pulunomoe\DataMapper\Validator\Unique;
 
 #[Entity('tests')] // Put your table name here
 class Car extends EntityClass
@@ -38,9 +41,11 @@ class Car extends EntityClass
 	public int $id;   // "$id" is a special column for primary key
 
 	#[Property('brand')]
+	#[Validator([NotEmpty::class])] // This field is validated
 	public string $brand;
 
 	#[Property('model')]
+	#[Validator([NotEmpty::class, Unique::class])] // This field is using multiple validation
 	public string $model;
 }
 ```
@@ -49,6 +54,8 @@ class Car extends EntityClass
 
 ```php
 <?php
+
+use Pulunomoe\DataMapper\ValidationException;
 
 // Initialize the data mapper by passing a PDO instance and the entity class name
 $dm = new DataMapper($pdo, Car::class);
@@ -66,14 +73,21 @@ $dm->findOne(1);
 $car = new Car();
 $car->brand = 'Honyabishi';
 $car->model = 'Super 9001';
-$car = $dm->create($car);
+$car = $dm->create($car); // If the data is invalid, an exception will be thrown
 
 // Update a car
 $car->model = 'Super 9001 Mark II Type R GT-MAXXX';
-$car = $dm->update($car);
+$car = $dm->update($car); // If the data is invalid, an exception will be thrown
 
 // Delete a car with the id = 1
 $dm->delete(1);
+
+// Catching validation exception
+try {
+    $dm->create($car);
+} catch (ValidationException $ex) {
+    $errors = $ex->getErrors();
+}
 ```
 
 ## API
@@ -106,6 +120,7 @@ $dm->delete(1);
 
 - v0.1 : Initial version
 - v0.2 : Added ordering, limit, and find all by
+- v0.3 : Added basic validations
 
 ## Shameless plug
 

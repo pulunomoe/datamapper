@@ -3,6 +3,9 @@
 namespace Pulunomoe\DataMapper;
 
 use PDO;
+use Pulunomoe\DataMapper\Attribute\Entity;
+use Pulunomoe\DataMapper\Attribute\Property;
+use Pulunomoe\DataMapper\Attribute\Validator;
 use ReflectionClass;
 
 class DataMapper
@@ -21,23 +24,27 @@ class DataMapper
 
 		$r = new ReflectionClass($class);
 
-		$attr = $r->getAttributes(Entity::class);
-		if (empty($attr[0])) {
-			throw new DataMapperException('Invalid entity class');
+		$attrs = $r->getAttributes(Entity::class);
+		if (empty($attrs[0])) {
+			throw new ValidationException('Invalid entity class');
 		}
 
-		$this->table = $attr[0]->newInstance()->getTable();
+		$this->table = $attrs[0]->newInstance()->getTable();
 
 		$props = $r->getProperties();
 		foreach ($props as $prop) {
 
-			$attr = $prop->getAttributes(Property::class);
-			if (empty($attr[0])) {
-				throw new DataMapperException('Invalid entity class properties');
+			$attrs = $prop->getAttributes(Property::class);
+			if (!empty($attrs[0])) {
+				$attrs = $attrs[0]->newInstance();
+				$this->columns[$prop->name]['column'] = $attrs->getColumn();
 			}
 
-			$attr = $attr[0]->newInstance();
-			$this->columns[$prop->name] = $attr->getColumn();
+			$attrs = $prop->getAttributes(Validator::class);
+			if (!empty($attrs[0])) {
+				$attrs = $attrs[0]->newInstance();
+				$this->columns[$prop->name]['validators'] = $attrs->getValidators();
+			}
 		}
 	}
 
@@ -53,7 +60,7 @@ class DataMapper
 
 		$objects = [];
 		foreach ($rows as $row) {
-			$objects[$row[$this->columns['id']]] = $this->mapRowToObject($row);
+			$objects[$row[$this->columns['id']['column']]] = $this->mapRowToObject($row);
 		}
 
 		return $objects;
@@ -63,7 +70,7 @@ class DataMapper
 	{
 		$sql = $this->getSelectSql();
 		$sql .= ' WHERE ';
-		$sql .= $this->columns[$column];
+		$sql .= $this->columns[$column]['column'];
 		$sql .= ' = :' . $column;
 		$sql .= $this->getOrderBySql($orderBy, $desc);
 
@@ -73,7 +80,7 @@ class DataMapper
 
 		$objects = [];
 		foreach ($rows as $row) {
-			$objects[$row[$this->columns['id']]] = $this->mapRowToObject($row);
+			$objects[$row[$this->columns['id']['column']]] = $this->mapRowToObject($row);
 		}
 
 		return $objects;
@@ -83,7 +90,7 @@ class DataMapper
 	{
 		$sql = $this->getSelectSql();
 		$sql .= ' WHERE ';
-		$sql .= $this->columns['id'];
+		$sql .= $this->columns['id']['column'];
 		$sql .= ' = :id';
 
 		$stmt = $this->pdo->prepare($sql);
@@ -95,6 +102,8 @@ class DataMapper
 
 	public function create(EntityClass $object): EntityClass
 	{
+		$this->validateForCreate($object);
+
 		$sql = $this->getInsertSql();
 
 		$stmt = $this->pdo->prepare($sql);
@@ -111,6 +120,8 @@ class DataMapper
 
 	public function update(EntityClass $object): EntityClass
 	{
+		$this->validateForUpdate($object);
+
 		$sql = $this->getUpdateSql();
 
 		$stmt = $this->pdo->prepare($sql);
@@ -132,12 +143,54 @@ class DataMapper
 
 	////////////////////////////////////////////////////////////////////////////
 
+	private function validateForCreate(EntityClass $object): void
+	{
+		$errors = [];
+
+		foreach ($this->columns as $key => $column) {
+			if (!empty($column['validators'])) {
+				foreach ($column['validators'] as $validator) {
+					$result = $validator::validateForCreate($this->pdo, $object->$key);
+					if (!empty($result)) {
+						$errors[] = $key . ' ' . $result;
+					}
+				}
+			}
+		}
+
+		if (!empty($errors)) {
+			throw new ValidationException($errors);
+		}
+	}
+
+	private function validateForUpdate(EntityClass $object): void
+	{
+		$errors = [];
+
+		foreach ($this->columns as $key => $column) {
+			if (!empty($column['validators'])) {
+				foreach ($column['validators'] as $validator) {
+					$result = $validator::validateForUpdate($this->pdo, $object->$key);
+					if (!empty($result)) {
+						$errors[] = $key . ' ' . $result;
+					}
+				}
+			}
+		}
+
+		if (!empty($errors)) {
+			throw new ValidationException($errors);
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+
 	private function getSelectSql(): string
 	{
 		$sql = 'SELECT ';
 
 		foreach ($this->columns as $column) {
-			$sql .= $column . ', ';
+			$sql .= $column['column'] . ', ';
 		}
 		$sql = rtrim($sql, ', ');
 
@@ -150,7 +203,7 @@ class DataMapper
 	private function getOrderBySql(string $orderBy, bool $desc): string
 	{
 		$sql = ' ORDER BY ';
-		$sql .= empty($orderBy) ? $this->columns['id'] : $this->columns[$orderBy];
+		$sql .= empty($orderBy) ? $this->columns['id']['column'] : $this->columns[$orderBy]['column'];
 		$sql .= $desc ? ' DESC' : ' ASC';
 
 		return $sql;
@@ -174,7 +227,7 @@ class DataMapper
 
 		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
 			if ($objectPropertyName == 'id') continue;
-			$sql .= $dbFieldName . ', ';
+			$sql .= $dbFieldName['column'] . ', ';
 		}
 		$sql = rtrim($sql, ', ');
 
@@ -199,12 +252,12 @@ class DataMapper
 
 		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
 			if ($objectPropertyName == 'id') continue;
-			$sql .= $dbFieldName . ' = :' . $objectPropertyName . ', ';
+			$sql .= $dbFieldName['column'] . ' = :' . $objectPropertyName . ', ';
 		}
 		$sql = rtrim($sql, ', ');
 
 		$sql .= ' WHERE ';
-		$sql .= $this->columns['id'];
+		$sql .= $this->columns['id']['column'];
 		$sql .= ' = :id';
 
 		return $sql;
@@ -215,7 +268,7 @@ class DataMapper
 		$sql = 'DELETE FROM ';
 		$sql .= $this->table;
 		$sql .= ' WHERE ';
-		$sql .= $this->columns['id'];
+		$sql .= $this->columns['id']['column'];
 		$sql .= ' = :id';
 
 		return $sql;
@@ -227,7 +280,7 @@ class DataMapper
 	{
 		$object = new $this->class();
 		foreach ($this->columns as $objectPropertyName => $dbFieldName) {
-			$object->$objectPropertyName = $row[$dbFieldName];
+			$object->$objectPropertyName = $row[$dbFieldName['column']];
 		}
 
 		return $object;
